@@ -1,0 +1,203 @@
+<body>
+<style>
+.map svg {
+    position: relative;
+    top: 0;
+    left: 0;
+}
+
+.map img {
+    position: relative;
+    top: 0;
+    left: 0;   
+}
+
+.CHAMPION_KILL {
+    stroke: black;
+    fill: red;
+    color: red;
+}
+
+.ELITE_MONSTER_KILL {
+    stroke: black;
+    fill: blue;
+    color: blue;
+}
+
+.BUILDING_KILL {
+    stroke: black;
+    fill: purple;
+    color: purple;
+}
+</style>
+<script src="https://d3js.org/d3.v3.min.js"></script>
+<div class="wrapper">
+<div id="config">Config</div>
+<table id="eventColor" border="2">
+    <caption>Event Data</caption>
+    <tbody></tbody>
+</table>
+<table id= "userdata" border="2">
+  <caption>Result</caption>
+  <thead>
+  </thead>
+  <tbody>
+  </tbody>
+</table>
+</div>
+
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"> </script>
+<script>
+
+//////////////////////-----Script------////////////////////////////////////
+
+var cords = [],
+    // Domain for the current Summoner's Rift on the in-game mini-map
+    domain = {
+            min: {x: -120, y: -120},
+            max: {x: 14870, y: 14980}
+    },
+    width = 512,
+    height = 512,
+    bg = "https://s3-us-west-1.amazonaws.com/riot-developer-portal/docs/map11.png",
+    xScale, yScale, svg;
+
+/////////////////////////////////////////////
+
+$(function() {
+$.getJSON('outData.json', function(data) {
+        var first = true;
+        var headRow ="<th></th>";
+        for (var key in data)
+        {
+            var timeline = data[key];
+            var side = key == 100 ? "We'r Blue side" : "We'r Red side";
+            $("<tr><td>"+side+"</td></tr>").appendTo("#userdata tbody");
+            for(var t in timeline)
+            {
+                var clusters = timeline[t];
+                var idRow= String(key)+String(t);
+                var tbRow= "<tr id=\""+idRow+"\">"+"<th>"+ (t/60000) + "min</th>";
+                $(tbRow).appendTo("#userdata tbody");
+                for(var c in clusters)
+                {   
+                    var idCol = "map"+idRow+String(c);
+                    var newRow = "<td class=\"map\" id=\""+idCol+"\"></td>";
+                    $(newRow).appendTo('#'+idRow);
+
+                    displayCallback('#'+idCol, clusters[c]);
+
+                    if(first)
+                    {
+                        headRow += "<th>Cluster"+ c + "</th>";
+                    }
+                }
+                if(first)
+                {
+                    $(headRow).appendTo("#userdata thead");
+                    first = false;
+                }
+                $("</tr>").appendTo('#'+idRow);
+            }
+        }
+   });
+});
+
+$(function() {
+$.getJSON('config.json', function(data) {
+        var info = "<p>";
+        for (var key in data['match'])
+        {
+            if(key == 'win')
+            {
+                var win =" | We win: " + (data[key] == 1 ? "Yes" : "No");
+                info += win;
+            }
+            else if(key == 'myTeam')
+            {
+                var team = " | Show Team: " + (data[key] == 1 ? "Us" : "Opponent");
+                info += team;
+            }
+        }
+        //--TODO: improve this
+        info += "| algorithm : Kmeanes";
+        var kmeans = data['algorithm']['kmeans'];
+        for (var key in kmeans)
+        {
+            var d = " | "+ key + " : " +  kmeans[key];
+            console.log(d);
+            info += d;
+        }
+        info += "</p>";
+        $(info).appendTo("#config");
+        
+        var row = "<tr>";
+        var events = data['timeline']['event'];
+        for (var key in events)
+        {
+            var col = "<td class=\""+key+"\">"+key+"</td>";
+            row += col;
+        }
+        row += "</tr>";
+        $(row).appendTo("#eventColor");
+    });
+});
+
+$(function() {
+$.getJSON('outInfo.json', function(data) {
+        var info = "<p>Info</p><p>";
+        for(var key in data)
+        {
+            var d = " | " + key + " : " + data[key];
+            info += d;
+        }
+        info += "</p>";
+        $(info).appendTo("#config");
+    }); 
+});
+//////////////////////////////////////////////
+
+color = d3.scale.linear()
+    .domain([0, 3])
+    .range(["white", "steelblue"])
+    .interpolate(d3.interpolateLab);
+
+xScale = d3.scale.linear()
+  .domain([domain.min.x, domain.max.x])
+  .range([0, width]);
+
+yScale = d3.scale.linear()
+  .domain([domain.min.y, domain.max.y])
+  .range([height, 0]);
+
+function displayCallback(mapid, records){
+    svg = d3.select(mapid).append("svg:svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    svg.append('image')
+        .attr('xlink:href', bg)
+        .attr('x', '0')
+        .attr('y', '0')
+        .attr('width', width)
+        .attr('height', height);
+
+    svg.append('svg:g').selectAll("circle")
+        .data(records)
+        .enter().append("svg:circle")
+            .attr('cx', function(d) { return xScale(d.position[0]) })
+            .attr('cy', function(d) { return yScale(d.position[1]) })
+            .attr('r', 5)
+            .attr('class', function(d){return d.eventType})
+            .append("svg:title").text(function(d){ 
+                var len = d.participants.length;
+                var rlist = "";
+                for(var i=0; i < len; i++)
+                {
+                    rlist = rlist.concat(" ", d.participants[i]);
+                }
+                return rlist;
+            });
+}
+</script>
+</body>
